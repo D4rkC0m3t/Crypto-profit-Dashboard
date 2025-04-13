@@ -181,8 +181,8 @@ with st.sidebar.expander("Data Sources", expanded=False):
     - **Market Data**: Based on public trading volume
     """)
 
-# Main content - Tabs for main overview and charts
-tab_names = ["Overview", "Exchange Comparison", "Fee Analysis", "Volume Analysis"]
+# Main content - Tabs for main overview, charts, and individual exchanges
+tab_names = ["Overview", "Exchange Comparison", "Fee Analysis", "Volume Analysis"] + exchanges
 tabs = st.tabs(tab_names)
 
 # Overall summary tab
@@ -759,6 +759,249 @@ with tabs[3]:
         )
         
         st.plotly_chart(efficiency_bar, use_container_width=True)
+
+# Individual exchange tabs
+for i, exchange in enumerate(exchanges):
+    # Calculate index in tabs list (add 4 because the first 4 tabs are Overview, Exchange Comparison, Fee Analysis, Volume Analysis)
+    tab_index = i + 4
+    
+    with tabs[tab_index]:
+        st.header(f"{exchange} Exchange Analysis")
+        
+        # Key metrics in columns
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # Calculate metrics for this exchange
+        total_monthly_comm = sum(exchange_data[exchange]['monthly_commission'])
+        total_monthly_vol = sum(exchange_data[exchange]['monthly_volume'])
+        total_yearly_comm = sum(exchange_data[exchange]['yearly_commission'])
+        total_yearly_vol = sum(exchange_data[exchange]['yearly_volume'])
+        
+        with col1:
+            st.metric(
+                "Monthly Commissions", 
+                f"${format_large_number(total_monthly_comm)}"
+            )
+        
+        with col2:
+            st.metric(
+                "Monthly Volume", 
+                f"${format_large_number(total_monthly_vol)}"
+            )
+        
+        with col3:
+            st.metric(
+                "Yearly Commissions", 
+                f"${format_large_number(total_yearly_comm)}"
+            )
+        
+        with col4:
+            st.metric(
+                "Yearly Volume", 
+                f"${format_large_number(total_yearly_vol)}"
+            )
+        
+        # Fee structure section highlighted first
+        st.subheader("VIP/Tier Fee Structure")
+        
+        # Create and display fee table
+        fee_table = create_fees_table(
+            exchange_data[exchange]['vip_tiers'],
+            exchange_data[exchange]['maker_fees'],
+            exchange_data[exchange]['taker_fees']
+        )
+        
+        st.dataframe(fee_table, use_container_width=True)
+        
+        # Show maker/taker fee trend by VIP level
+        st.subheader("Fee Structure by VIP Level")
+        
+        # Create DataFrame for the chart
+        fee_df = pd.DataFrame({
+            'VIP Level': exchange_data[exchange]['vip_tiers'],
+            'Maker Fee': exchange_data[exchange]['maker_fees'],
+            'Taker Fee': exchange_data[exchange]['taker_fees']
+        })
+        
+        # Melt DataFrame for plotting
+        fee_df_melted = pd.melt(
+            fee_df, 
+            id_vars=['VIP Level'], 
+            value_vars=['Maker Fee', 'Taker Fee'],
+            var_name='Fee Type', 
+            value_name='Fee Percentage'
+        )
+        
+        # Create the line chart
+        fee_fig = px.line(
+            fee_df_melted,
+            x='VIP Level',
+            y='Fee Percentage',
+            color='Fee Type',
+            title='Maker/Taker Fees by VIP Level',
+            markers=True,
+            color_discrete_sequence=['#1E88E5', '#FFC107']
+        )
+        
+        fee_fig.update_layout(
+            yaxis_title='Fee Percentage',
+            xaxis_title='VIP Level',
+            height=400,
+            yaxis=dict(tickformat='.3f')
+        )
+        
+        st.plotly_chart(fee_fig, use_container_width=True, key=f"fee_fig_{exchange}")
+        
+        # Charts
+        st.subheader("Performance Charts")
+        
+        # Monthly/Yearly toggle for charts
+        chart_timeframe = st.radio(
+            "Select Chart Timeframe", 
+            ["Monthly", "Yearly"],
+            horizontal=True,
+            key=f"timeframe_toggle_{exchange}"
+        )
+        
+        # Performance charts
+        col1, col2 = st.columns(2)
+        
+        if chart_timeframe == "Monthly":
+            with col1:
+                # Monthly commissions earned
+                monthly_comm_chart = create_monthly_bar_chart(
+                    exchange_data[exchange]['monthly_dates'],
+                    exchange_data[exchange]['monthly_commission'],
+                    "Monthly Commissions Earned",
+                    "Commissions ($)",
+                    color_sequence=['#1E88E5', '#FFC107']
+                )
+                st.plotly_chart(monthly_comm_chart, use_container_width=True, key=f"monthly_comm_{exchange}")
+            
+            with col2:
+                # Monthly volume traded
+                monthly_vol_chart = create_monthly_bar_chart(
+                    exchange_data[exchange]['monthly_dates'],
+                    exchange_data[exchange]['monthly_volume'],
+                    "Monthly Volume Traded",
+                    "Volume ($)",
+                    color_sequence=['#43A047', '#E53935']
+                )
+                st.plotly_chart(monthly_vol_chart, use_container_width=True, key=f"monthly_vol_{exchange}")
+        else:  # Yearly
+            with col1:
+                # Yearly commissions earned
+                yearly_comm_chart = create_yearly_bar_chart(
+                    exchange_data[exchange]['yearly_dates'],
+                    exchange_data[exchange]['yearly_commission'],
+                    "Yearly Commissions Earned",
+                    "Commissions ($)",
+                    color_sequence=['#1E88E5', '#FFC107']
+                )
+                st.plotly_chart(yearly_comm_chart, use_container_width=True, key=f"yearly_comm_{exchange}")
+            
+            with col2:
+                # Yearly volume traded
+                yearly_vol_chart = create_yearly_bar_chart(
+                    exchange_data[exchange]['yearly_dates'],
+                    exchange_data[exchange]['yearly_volume'],
+                    "Yearly Volume Traded",
+                    "Volume ($)",
+                    color_sequence=['#43A047', '#E53935']
+                )
+                st.plotly_chart(yearly_vol_chart, use_container_width=True, key=f"yearly_vol_{exchange}")
+        
+        # Market comparison section
+        st.subheader("Market Comparison")
+        
+        # Calculate averages for all exchanges
+        avg_monthly_comm = sum([sum(exchange_data[ex]['monthly_commission']) for ex in exchanges]) / len(exchanges)
+        avg_monthly_vol = sum([sum(exchange_data[ex]['monthly_volume']) for ex in exchanges]) / len(exchanges)
+        
+        # Calculate the current exchange's metrics relative to average
+        monthly_comm_vs_avg = ((total_monthly_comm / avg_monthly_comm) - 1) * 100
+        monthly_vol_vs_avg = ((total_monthly_vol / avg_monthly_vol) - 1) * 100
+        
+        # Display comparison metrics
+        comp_col1, comp_col2 = st.columns(2)
+        
+        with comp_col1:
+            st.metric(
+                "Commission vs. Market Average", 
+                f"{monthly_comm_vs_avg:+.2f}%",
+                delta_color="normal"
+            )
+            
+            # Create a comparison chart for commissions
+            market_position_data = []
+            for ex in exchanges:
+                ex_monthly_comm = sum(exchange_data[ex]['monthly_commission'])
+                if ex == exchange:
+                    highlight = "Current Exchange"
+                else:
+                    highlight = "Other Exchanges"
+                    
+                market_position_data.append({
+                    "Exchange": ex,
+                    "Monthly Commission": ex_monthly_comm,
+                    "Highlight": highlight
+                })
+                
+            market_position_df = pd.DataFrame(market_position_data)
+            
+            position_fig = px.bar(
+                market_position_df,
+                x="Exchange",
+                y="Monthly Commission",
+                color="Highlight",
+                title="Commission Market Position",
+                color_discrete_map={
+                    "Current Exchange": "#1E88E5",
+                    "Other Exchanges": "#E0E0E0"
+                }
+            )
+            
+            position_fig.update_layout(height=400)
+            st.plotly_chart(position_fig, use_container_width=True, key=f"commission_position_{exchange}")
+            
+        with comp_col2:
+            st.metric(
+                "Volume vs. Market Average", 
+                f"{monthly_vol_vs_avg:+.2f}%",
+                delta_color="normal"
+            )
+            
+            # Create a comparison chart for volume
+            vol_position_data = []
+            for ex in exchanges:
+                ex_monthly_vol = sum(exchange_data[ex]['monthly_volume'])
+                if ex == exchange:
+                    highlight = "Current Exchange"
+                else:
+                    highlight = "Other Exchanges"
+                    
+                vol_position_data.append({
+                    "Exchange": ex,
+                    "Monthly Volume": ex_monthly_vol,
+                    "Highlight": highlight
+                })
+                
+            vol_position_df = pd.DataFrame(vol_position_data)
+            
+            vol_position_fig = px.bar(
+                vol_position_df,
+                x="Exchange",
+                y="Monthly Volume",
+                color="Highlight",
+                title="Volume Market Position",
+                color_discrete_map={
+                    "Current Exchange": "#43A047",
+                    "Other Exchanges": "#E0E0E0"
+                }
+            )
+            
+            vol_position_fig.update_layout(height=400)
+            st.plotly_chart(vol_position_fig, use_container_width=True, key=f"volume_position_{exchange}")
 
 # Add footer
 st.markdown("---")
