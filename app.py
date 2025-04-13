@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import datetime
-from data_generator import generate_exchange_data
+from data_fetcher import (
+    fetch_real_time_data,
+    fetch_crypto_news,
+    fetch_current_prices
+)
 from utils import (
     create_monthly_bar_chart, 
     create_yearly_bar_chart,
@@ -25,9 +29,8 @@ st.set_page_config(
 st.title("Crypto Exchange Profits Dashboard")
 st.markdown("*Analysis of commissions earned, volume traded, and fee structures across major cryptocurrency exchanges*")
 
-# Generate the exchange data
-# In a real application, this would be replaced with data from an API or database
-exchange_data = generate_exchange_data()
+# Fetch real-time exchange data
+exchange_data = fetch_real_time_data()
 exchanges = list(exchange_data.keys())
 
 # Sidebar for filters
@@ -44,10 +47,11 @@ date_range = st.sidebar.date_input(
     max_value=today
 )
 
-# Show a note about the simulated data
+# Show a note about the data source
 st.sidebar.info(
-    "⚠️ Note: This dashboard uses simulated data structures that mimic "
-    "realistic patterns but are not based on actual exchange data."
+    "ℹ️ This dashboard fetches real-time cryptocurrency exchange data "
+    "from public APIs and exchange documentation. Data is refreshed "
+    "each time the dashboard is loaded."
 )
 
 # Main content - Tabs for each exchange
@@ -86,17 +90,17 @@ with tabs[0]:
     with col1:
         # Pie chart for commission distribution
         pie_fig = create_commission_pie_chart(exchange_data)
-        st.plotly_chart(pie_fig, use_container_width=True)
+        st.plotly_chart(pie_fig, use_container_width=True, key="commission_pie")
     
     with col2:
         # Pie chart for volume distribution
         vol_pie_fig = create_volume_pie_chart(exchange_data)
-        st.plotly_chart(vol_pie_fig, use_container_width=True)
+        st.plotly_chart(vol_pie_fig, use_container_width=True, key="volume_pie")
     
     # Fee comparison chart
     st.subheader("Exchange Fee Comparison")
     fee_fig = create_fee_comparison_chart(exchange_data)
-    st.plotly_chart(fee_fig, use_container_width=True)
+    st.plotly_chart(fee_fig, use_container_width=True, key="fee_comparison")
     
     # Yearly performance comparison
     st.subheader("Yearly Performance Comparison")
@@ -129,7 +133,7 @@ with tabs[0]:
             barmode='group'
         )
         yearly_comm_fig.update_layout(height=500)
-        st.plotly_chart(yearly_comm_fig, use_container_width=True)
+        st.plotly_chart(yearly_comm_fig, use_container_width=True, key="yearly_commission_comparison")
     
     with col2:
         yearly_vol_fig = px.bar(
@@ -141,7 +145,7 @@ with tabs[0]:
             barmode='group'
         )
         yearly_vol_fig.update_layout(height=500)
-        st.plotly_chart(yearly_vol_fig, use_container_width=True)
+        st.plotly_chart(yearly_vol_fig, use_container_width=True, key="yearly_volume_comparison")
 
 # Individual exchange tabs
 for i, exchange in enumerate(exchanges, 1):
@@ -196,7 +200,7 @@ for i, exchange in enumerate(exchanges, 1):
                 "Commissions ($)",
                 color_sequence=['#1E88E5', '#FFC107']
             )
-            st.plotly_chart(monthly_comm_chart, use_container_width=True)
+            st.plotly_chart(monthly_comm_chart, use_container_width=True, key=f"monthly_comm_{exchange}")
         
         with col2:
             # Yearly commissions earned
@@ -207,7 +211,7 @@ for i, exchange in enumerate(exchanges, 1):
                 "Commissions ($)",
                 color_sequence=['#1E88E5', '#FFC107']
             )
-            st.plotly_chart(yearly_comm_chart, use_container_width=True)
+            st.plotly_chart(yearly_comm_chart, use_container_width=True, key=f"yearly_comm_{exchange}")
         
         # Volume charts
         col1, col2 = st.columns(2)
@@ -221,7 +225,7 @@ for i, exchange in enumerate(exchanges, 1):
                 "Volume ($)",
                 color_sequence=['#43A047', '#E53935']
             )
-            st.plotly_chart(monthly_vol_chart, use_container_width=True)
+            st.plotly_chart(monthly_vol_chart, use_container_width=True, key=f"monthly_vol_{exchange}")
         
         with col2:
             # Yearly volume traded
@@ -232,7 +236,7 @@ for i, exchange in enumerate(exchanges, 1):
                 "Volume ($)",
                 color_sequence=['#43A047', '#E53935']
             )
-            st.plotly_chart(yearly_vol_chart, use_container_width=True)
+            st.plotly_chart(yearly_vol_chart, use_container_width=True, key=f"yearly_vol_{exchange}")
         
         # Fee structure
         st.subheader("Fee Structure")
@@ -283,7 +287,7 @@ for i, exchange in enumerate(exchanges, 1):
             yaxis=dict(tickformat='.3f')
         )
         
-        st.plotly_chart(fee_fig, use_container_width=True)
+        st.plotly_chart(fee_fig, use_container_width=True, key=f"fee_fig_{exchange}")
 
 # Add footer
 st.markdown("---")
