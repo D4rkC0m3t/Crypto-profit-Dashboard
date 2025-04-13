@@ -33,8 +33,12 @@ st.markdown("*Analysis of commissions earned, volume traded, and fee structures 
 exchange_data = fetch_real_time_data()
 exchanges = list(exchange_data.keys())
 
-# Sidebar for filters
+# Sidebar for filters and controls
 st.sidebar.header("Dashboard Controls")
+
+# Add a refresh button
+if st.sidebar.button("🔄 Refresh Data"):
+    st.rerun()
 
 # Date range selector for data
 today = datetime.date.today()
@@ -47,12 +51,25 @@ date_range = st.sidebar.date_input(
     max_value=today
 )
 
+# Show last updated time
+current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+st.sidebar.markdown(f"**Last Updated:** {current_time}")
+
 # Show a note about the data source
 st.sidebar.info(
     "ℹ️ This dashboard fetches real-time cryptocurrency exchange data "
     "from public APIs and exchange documentation. Data is refreshed "
-    "each time the dashboard is loaded."
+    "each time the dashboard is loaded or the refresh button is clicked."
 )
+
+# Add data source information
+with st.sidebar.expander("Data Sources", expanded=False):
+    st.markdown("""
+    - **Exchange Fee Data**: Public exchange documentation
+    - **Cryptocurrency Prices**: CoinGecko API
+    - **News Data**: CoinGecko News API
+    - **Market Data**: Based on public trading volume
+    """)
 
 # Main content - Tabs for each exchange
 tab_names = ["Overview"] + exchanges
@@ -62,7 +79,46 @@ tabs = st.tabs(tab_names)
 with tabs[0]:
     st.header("Crypto Exchange Performance Overview")
     
+    # Fetch current cryptocurrency prices
+    current_prices = fetch_current_prices()
+    
+    # Display current crypto prices
+    st.subheader("Live Cryptocurrency Prices")
+    price_cols = st.columns(7)  # 7 cryptocurrencies
+    
+    # Create a list of cryptocurrencies and their details
+    crypto_list = [
+        {"id": "bitcoin", "name": "Bitcoin", "symbol": "BTC"},
+        {"id": "ethereum", "name": "Ethereum", "symbol": "ETH"},
+        {"id": "ripple", "name": "XRP", "symbol": "XRP"},
+        {"id": "cardano", "name": "Cardano", "symbol": "ADA"},
+        {"id": "solana", "name": "Solana", "symbol": "SOL"},
+        {"id": "polkadot", "name": "Polkadot", "symbol": "DOT"},
+        {"id": "dogecoin", "name": "Dogecoin", "symbol": "DOGE"}
+    ]
+    
+    # Show each cryptocurrency price in a column
+    for i, crypto in enumerate(crypto_list):
+        with price_cols[i]:
+            if crypto["id"] in current_prices:
+                price = current_prices[crypto["id"]]["usd"]
+                change = current_prices[crypto["id"]]["usd_24h_change"]
+                
+                # Format the change with arrow
+                change_text = f"{change:.2f}%" if change == 0 else (f"↑ {change:.2f}%" if change > 0 else f"↓ {change:.2f}%")
+                change_color = "gray" if change == 0 else ("green" if change > 0 else "red")
+                
+                # Display the crypto card
+                st.markdown(f"""
+                <div style="border-radius:10px; border:1px solid #ddd; padding:10px; text-align:center;">
+                    <h4 style="margin:0;">{crypto['symbol']}</h4>
+                    <p style="font-size:1.2rem; margin:5px 0;">${price:,.2f}</p>
+                    <p style="color:{change_color}; margin:0;">{change_text}</p>
+                </div>
+                """, unsafe_allow_html=True)
+    
     # Summary metrics in columns
+    st.subheader("Exchange Profit Metrics")
     col1, col2, col3, col4 = st.columns(4)
     
     # Calculate summary metrics
@@ -82,6 +138,25 @@ with tabs[0]:
     
     with col4:
         st.metric("Total Yearly Commission", f"${format_large_number(total_yearly_commission)}")
+    
+    # Display crypto news headlines
+    st.subheader("Latest Crypto News")
+    news_data = fetch_crypto_news()
+    
+    with st.expander("View Latest News", expanded=True):
+        for i, news_item in enumerate(news_data[:5]):  # Display top 5 news items
+            title = news_item.get("title", "No title available")
+            description = news_item.get("description", "No description available")
+            url = news_item.get("url", "#")
+            date = news_item.get("published_at", "Unknown date")
+            
+            st.markdown(f"### {title}")
+            st.markdown(f"*{date}*")
+            st.markdown(description)
+            st.markdown(f"[Read more]({url})")
+            
+            if i < len(news_data[:5]) - 1:  # Don't add divider after the last item
+                st.markdown("---")
     
     # Distribution charts
     st.subheader("Distribution Analysis")
@@ -288,7 +363,100 @@ for i, exchange in enumerate(exchanges, 1):
         )
         
         st.plotly_chart(fee_fig, use_container_width=True, key=f"fee_fig_{exchange}")
+        
+        # Market comparison section
+        st.subheader("Market Comparison")
+        
+        # Calculate averages for all exchanges
+        avg_monthly_comm = sum([sum(exchange_data[ex]['monthly_commission']) for ex in exchanges]) / len(exchanges)
+        avg_monthly_vol = sum([sum(exchange_data[ex]['monthly_volume']) for ex in exchanges]) / len(exchanges)
+        
+        # Calculate the current exchange's metrics relative to average
+        monthly_comm_vs_avg = ((total_monthly_comm / avg_monthly_comm) - 1) * 100
+        monthly_vol_vs_avg = ((total_monthly_vol / avg_monthly_vol) - 1) * 100
+        
+        # Display comparison metrics
+        comp_col1, comp_col2 = st.columns(2)
+        
+        with comp_col1:
+            st.metric(
+                "Commission vs. Market Average", 
+                f"{monthly_comm_vs_avg:+.2f}%",
+                delta_color="normal"
+            )
+            
+            # Create a comparison chart for commissions
+            market_position_data = []
+            for ex in exchanges:
+                ex_monthly_comm = sum(exchange_data[ex]['monthly_commission'])
+                if ex == exchange:
+                    highlight = "Current Exchange"
+                else:
+                    highlight = "Other Exchanges"
+                    
+                market_position_data.append({
+                    "Exchange": ex,
+                    "Monthly Commission": ex_monthly_comm,
+                    "Highlight": highlight
+                })
+                
+            market_position_df = pd.DataFrame(market_position_data)
+            
+            position_fig = px.bar(
+                market_position_df,
+                x="Exchange",
+                y="Monthly Commission",
+                color="Highlight",
+                title="Commission Market Position",
+                color_discrete_map={
+                    "Current Exchange": "#1E88E5",
+                    "Other Exchanges": "#E0E0E0"
+                }
+            )
+            
+            position_fig.update_layout(height=400)
+            st.plotly_chart(position_fig, use_container_width=True, key=f"commission_position_{exchange}")
+            
+        with comp_col2:
+            st.metric(
+                "Volume vs. Market Average", 
+                f"{monthly_vol_vs_avg:+.2f}%",
+                delta_color="normal"
+            )
+            
+            # Create a comparison chart for volume
+            vol_position_data = []
+            for ex in exchanges:
+                ex_monthly_vol = sum(exchange_data[ex]['monthly_volume'])
+                if ex == exchange:
+                    highlight = "Current Exchange"
+                else:
+                    highlight = "Other Exchanges"
+                    
+                vol_position_data.append({
+                    "Exchange": ex,
+                    "Monthly Volume": ex_monthly_vol,
+                    "Highlight": highlight
+                })
+                
+            vol_position_df = pd.DataFrame(vol_position_data)
+            
+            vol_position_fig = px.bar(
+                vol_position_df,
+                x="Exchange",
+                y="Monthly Volume",
+                color="Highlight",
+                title="Volume Market Position",
+                color_discrete_map={
+                    "Current Exchange": "#43A047",
+                    "Other Exchanges": "#E0E0E0"
+                }
+            )
+            
+            vol_position_fig.update_layout(height=400)
+            st.plotly_chart(vol_position_fig, use_container_width=True, key=f"volume_position_{exchange}")
 
 # Add footer
 st.markdown("---")
-st.markdown("*Dashboard created with Streamlit and Plotly*")
+current_date = datetime.datetime.now().strftime("%B %d, %Y")
+st.markdown(f"*Real-time Crypto Exchange Profits Dashboard | Data as of {current_date} | Created with Streamlit and Plotly*")
