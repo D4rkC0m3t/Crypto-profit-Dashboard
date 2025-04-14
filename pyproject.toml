@@ -1,15 +1,48 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "repl-nix-workspace"
+name = "tradeprofitanalytics"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.11"
+description = "A comprehensive dashboard for analyzing cryptocurrency exchange performance"
+requires-python = ">=3.7"
 dependencies = [
-    "numpy>=2.2.4",
-    "pandas>=2.2.3",
-    "plotly>=6.0.1",
-    "psycopg2-binary>=2.9.10",
-    "requests>=2.32.3",
-    "sqlalchemy>=2.0.40",
-    "streamlit>=1.44.1",
-    "trafilatura>=2.0.0",
+    "streamlit>=1.32.0",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+    "plotly>=5.18.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "matplotlib>=3.8.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+addopts = "--cov=src"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "setup.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
 ]

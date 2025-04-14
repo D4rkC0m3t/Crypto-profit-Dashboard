@@ -1,10 +1,21 @@
 [server]
 headless = true
 address = "0.0.0.0"
-port = 5000
+port = 8515
+enableCORS = false
+enableXsrfProtection = true
 
 [theme]
 primaryColor = "#1E88E5"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F5F5F5"
 textColor = "#121212"
+font = "sans serif"
+
+[browser]
+serverAddress = "localhost"
+serverPort = 8515
+gatherUsageStats = false
+
+[runner]
+fastReruns = true
